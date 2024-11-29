@@ -1,5 +1,5 @@
-;; AR Location-Based Gaming Smart Contract
-;; Implements player management, location-based challenges, NFT items, and achievements
+;; QuestVerse Core Smart Contract
+;; Implements AR location-based gaming with NFTs, achievements, and player management
 
 ;; Constants
 (define-constant contract-owner tx-sender)
@@ -121,8 +121,12 @@
     ;; Simple distance calculation for demonstration
     ;; In practice, you'd want a more accurate haversine formula
     (let (
-        (lat-diff (abs (- lat1 lat2)))
-        (lon-diff (abs (- lon1 lon2)))
+        (lat-diff (if (> lat1 lat2) 
+                     (- lat1 lat2) 
+                     (- lat2 lat1)))
+        (lon-diff (if (> lon1 lon2) 
+                     (- lon1 lon2) 
+                     (- lon2 lon1)))
     )
     (+ lat-diff lon-diff))
 )
@@ -139,7 +143,7 @@
             (get longitude location)
         ))
     )
-    (asserts! (<= distance (var-get min-distance-meters)) err-invalid-location)
+    (asserts! (<= (to-uint distance) (var-get min-distance-meters)) err-invalid-location)
     (asserts! (get active location) err-not-found)
     (asserts! (is-none (get claimed-by location)) err-already-claimed)
     
@@ -179,7 +183,7 @@
 (define-public (award-achievement (achievement-id uint))
     (let (
         (player-data (unwrap! (map-get? players tx-sender) err-not-found))
-        (achievement (unwrap! (map-get? achievements achievement-id) err-not-found))
+        (achievement-data (unwrap! (map-get? achievements achievement-id) err-not-found))
     )
     (begin
         ;; Mint achievement NFT
@@ -188,7 +192,7 @@
         ;; Update player achievements
         (map-set players tx-sender
             (merge player-data {
-                score: (+ (get score player-data) (get points achievement)),
+                score: (+ (get score player-data) (get points achievement-data)),
                 achievements: (unwrap! (as-max-len? (append (get achievements player-data) achievement-id) u50) err-invalid-location)
             })
         )
@@ -214,8 +218,10 @@
         (player-score (get score (unwrap! (map-get? players current-player) err-not-found)))
     )
     ;; Simple leaderboard update - in practice, you'd want more sophisticated logic
-    (map-set leaderboard player-score current-player)
-    true)
+    (begin
+        (map-set leaderboard player-score current-player)
+        (ok true)
+    ))
 )
 
 ;; Getter Functions
